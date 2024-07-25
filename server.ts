@@ -6,7 +6,6 @@ import ssh = require('ssh2')
 
 /** top level variables   */
 
-
 const errorPrint = (a: any) => console.error(a),
     print = (a: any) => console.log(a),
     app = express(),
@@ -57,14 +56,55 @@ const connectToSSH = (socket: net.Socket, sshHost: string, sshUsername: string, 
             errorPrint(`Error acquired check the logs`);
             callback(err)
         })
-
 }
-/*
-// API Endpoints
-app.post('/api/command', (req: { body: { command: any } }, res: any) => {
 
+function handleError(err: any, res: any) {
+    console.error('Error:', err);
+
+    if (err.code === 'ECONNREFUSED') {
+        res.status(500).send('Connection refused. Please check SSH server availability.');
+    } else {
+        res.status(500).send('An unexpected error occurred.');
+    }
+}
+
+// API Endpoints
+app.post('/api/command', (req, res: any) => {
+    const {command, socketAddress} = req.body;
+    const connection = sshConnections[socketAddress]
+    print(socketAddress)
+    if (!command || typeof command !== 'string') {
+        return res.status(400).send('Invalid command format. Please provide a string.')
+    }
+
+    if (!(connection || connection.connected)) {
+        return res.status(400).send('No active SSH connection for this client.')
+    }
+
+    connection.conn.shell((err, stream) => {
+        if (err) {
+            handleError(err, res); // Handle shell creation error
+            return;
+        }
+
+        stream.on('data', (data: { toString: () => any }) => {
+            print("test")
+            print(data)
+            res.write(data.toString());
+        });
+
+        stream.on('error', (err: any) => {
+            handleError(err, res); // Handle errors during command execution
+        });
+
+        stream.on('close', () => {
+            res.end(); // Signal end of command execution
+        });
+
+        stream.write(command + '\n'); // Send command to SSH server
+    });
 })
-*/
+
 app.post('/api/disconnect', (req: { body: { socketAddress: string } }, res: any) => {
     const socketAddress = req.body.socketAddress; // Get socket address from request body
 
@@ -119,20 +159,3 @@ app.get('/api/status', (req: any, res: any) => {
     }
     res.status(200).json(connectionDetails)
 })
-
-
-/*connection.shell((stream: any) => {
-
-    sshConnections[socket.remoteAddress] = {connection, stream}; // Store connection after successful establishment
-    socket.on('data', (data) => {
-        if (sshConnections[address]) sshConnections[address].stream.write(data);
-    });
-    stream.on('data', (data: string | Uint8Array) => {
-        socket.write(data)
-    }).on('close', () => {
-        print(`SSH connection to ${sshHost} closed for client: ${address}`);
-        socket.end();
-        delete sshConnections[address]; // Remove connection
-    })
-
-})*/
